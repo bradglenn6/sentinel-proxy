@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-# Required permissions for GitHub OIDC token minting
 permissions:
   id-token: write
   contents: read
@@ -20,9 +19,6 @@ env:
   SERVICE_ACCOUNT: 'sentinel-cicd-deployer@gen-lang-client-0973854052.iam.gserviceaccount.com'
 
 jobs:
-  # -----------------------------------------------------------
-  # Stage 1: Validation & Latency Gate
-  # -----------------------------------------------------------
   validate:
     name: Lint, Test & Latency SLA Gate
     runs-on: ubuntu-latest
@@ -49,9 +45,6 @@ jobs:
       - name: Execute In-Memory Latency SLA Gate (<= 4.0ms)
         run: node benchmark/engine_test.js
 
-  # -----------------------------------------------------------
-  # Stage 2: Deploy to Google Cloud Run (Main branch only)
-  # -----------------------------------------------------------
   deploy:
     name: Deploy to Cloud Run (WIF)
     needs: validate
@@ -62,7 +55,6 @@ jobs:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      # Exchange GitHub OIDC token for short-lived GCP credentials
       - name: Authenticate to Google Cloud (Workload Identity)
         uses: google-github-actions/auth@v2
         with:
@@ -72,7 +64,6 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      # Deploy directly from source via Cloud Build
       - name: Deploy Revision to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
@@ -82,7 +73,6 @@ jobs:
             --set-env-vars UPSTREAM_LLM_URL="https://generativelanguage.googleapis.com" \
             --quiet
 
-      # Post-deployment live edge smoke test
       - name: Live Endpoint Smoke Test
         run: |
           echo "Waiting 5 seconds for edge routing sync..."
