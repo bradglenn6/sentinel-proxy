@@ -1,0 +1,22 @@
+{
+  "name": "@zerolabz/sentinel-proxy",
+  "version": "1.0.0",
+  "description": "Stateless AI guardrail and reverse proxy middleware",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "undici": "^6.19.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "autocannon": "^7.15.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.2"
+  }
+}
