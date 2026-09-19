@@ -7,7 +7,7 @@ const app: FastifyInstance = fastify({ logger: false });
 const engine = new StatelessInspectionEngine();
 
 const UPSTREAM_LLM_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
-const GEMINI_KEY = 'AQ.Ab8RN6Jr5lDmZAhi6rZApDlcTPYI0tY9OCMeUL-ts0ziH-uUxQ';
+const GEMINI_KEY = process.env.GEMINI_KEY || '';
 
 interface ChatMessage {
   role: string;
@@ -20,7 +20,8 @@ interface ChatCompletionBody {
   stream?: boolean;
 }
 
-app.get('/healthz', async (_req, reply) => {
+app.get('/healthz', async (_req, reply) => reply.send({ status: 'ok', engine: 'stateless-v1' }));
+app.get('/v1/healthz', async (_req, reply) => {
   return reply.code(200).send({ status: 'ok', engine: 'stateless-v1' });
 });
 
