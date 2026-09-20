@@ -1,4 +1,4 @@
-import { DASHBOARD_HTML } from './dashboard';
+ï»¿import { DASHBOARD_HTML } from './dashboard';
 import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { request } from 'undici';
 import { Transform, TransformCallback } from 'stream';
@@ -18,6 +18,14 @@ interface ChatCompletionBody {
   model?: string;
   messages?: ChatMessage[];
   stream?: boolean;
+  tool_calls?: Array<{
+    id?: string;
+    type?: string;
+    function?: {
+      name?: string;
+      arguments?: string;
+    };
+  }>;
 }
 
 // -------------------------------------------------------------
@@ -29,7 +37,7 @@ const renderStatusHtml = () => `
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZeroLabz Sentinel — Active</title>
+  <title>ZeroLabz Sentinel â€” Active</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0B0F17; color: #E2E8F0; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .card { background: #151E2E; border: 1px solid #264669; border-radius: 12px; padding: 40px; max-width: 520px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
@@ -62,7 +70,7 @@ const renderStatusHtml = () => `
       </div>
     </div>
     <div class="footer">
-      Zero-Trust Infrastructure · <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a>
+      Zero-Trust Infrastructure Â· <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a>
     </div>
   </div>
 </body>
@@ -147,7 +155,13 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
   const tStart = performance.now();
   const body = req.body;
 
-  const combinedText = body?.messages?.map(m => m.content).join('\n') || '';
+  let combinedText = body?.messages?.map(m => m.content).join('\n') || '';
+    if (Array.isArray((body as any)?.tool_calls)) {
+      for (const tc of (body as any).tool_calls) {
+        if (tc.function?.arguments) combinedText += '\n' + tc.function.arguments;
+        if (tc.function?.name) combinedText += '\n' + tc.function.name;
+      }
+    }
   const inspection = engine.inspect(combinedText);
 
   if (inspection.action === 'BLOCK') {
@@ -209,3 +223,7 @@ app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
   }
   console.log(`[Sentinel] Proxy running on ${address}`);
 });
+
+
+
+

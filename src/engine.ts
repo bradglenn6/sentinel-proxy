@@ -1,4 +1,4 @@
-export interface InspectionResult {
+﻿export interface InspectionResult {
   action: 'PASS' | 'BLOCK';
   reason?: string;
   latencyMs: number;
@@ -7,6 +7,7 @@ export interface InspectionResult {
 export class StatelessInspectionEngine {
   private readonly jailbreakPatterns: RegExp[];
   private readonly piiPatterns: RegExp[];
+  private readonly rogueAgentPatterns: RegExp[];
   private readonly fastTokens: Set<string>;
 
   constructor() {
@@ -28,7 +29,18 @@ export class StatelessInspectionEngine {
       /\b(?:api[_-]?key|bearer|token)\s*[:=]\s*[A-Za-z0-9_\-\.]{20,}\b/i
     ];
 
-    this.fastTokens = new Set(['dan', 'jailbreak', 'unfiltered', 'sudo', 'eval', 'exec', 'system_prompt', 'chmod']);
+    this.rogueAgentPatterns = [
+      /(?:;|\|\||&&|\n)\s*(?:rm|mv|cp|chmod|chown|wget|curl|nc|bash|sh|powershell|cmd(?:\.exe)?)\b/i,
+      /\/dev\/(?:tcp|udp)\//i,
+      /\b(?:nc|netcat|ncat)\s+.*-e\b/i,
+      /(?:\.\.[\/\\]){2,}/i,
+      /\b(?:eval|exec|subprocess|child_process)\s*\(/i
+    ];
+
+    this.fastTokens = new Set([
+      'dan', 'jailbreak', 'unfiltered', 'sudo', 'eval', 'exec', 
+      'system_prompt', 'chmod', 'nc', 'bash', 'powershell', 'rm', 'curl', 'wget'
+    ]);
   }
 
   public inspect(text: string): InspectionResult {
@@ -54,6 +66,12 @@ export class StatelessInspectionEngine {
     for (const pattern of this.piiPatterns) {
       if (pattern.test(text)) {
         return { action: 'BLOCK', reason: 'CREDENTIAL_OR_PII_LEAK_DETECTED', latencyMs: performance.now() - t0 };
+      }
+    }
+
+    for (const pattern of this.rogueAgentPatterns) {
+      if (pattern.test(text)) {
+        return { action: 'BLOCK', reason: 'ROGUE_AGENT_CALL_DETECTED', latencyMs: performance.now() - t0 };
       }
     }
 
