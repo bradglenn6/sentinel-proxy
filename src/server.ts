@@ -69,14 +69,6 @@ const renderStatusHtml = () => `
 </html>
 `;
 
-app.get('/', async (_req, reply) => {
-  return reply.type('text/html').send(renderStatusHtml());
-});
-
-app.get('/v1', async (_req, reply) => {
-  return reply.type('text/html').send(renderStatusHtml());
-});
-
 app.get('/healthz', async (_req, reply) => {
   return reply.code(200).send({ status: 'ok', engine: 'stateless-v1' });
 });
