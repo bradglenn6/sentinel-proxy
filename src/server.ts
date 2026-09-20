@@ -1,3 +1,4 @@
+import { DASHBOARD_HTML } from './dashboard';
 import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { request } from 'undici';
 import { Transform, TransformCallback } from 'stream';
@@ -78,6 +79,26 @@ app.get('/v1', async (_req, reply) => {
 
 app.get('/healthz', async (_req, reply) => {
   return reply.code(200).send({ status: 'ok', engine: 'stateless-v1' });
+});
+
+// Root landing dashboard
+app.get('/', async (_req, reply) => {
+  reply.type('text/html').send(DASHBOARD_HTML);
+});
+
+// /v1 with Content Negotiation
+app.get('/v1', async (req, reply) => {
+  const accept = req.headers['accept'] || '';
+  if (typeof accept === 'string' && accept.includes('text/html')) {
+    reply.type('text/html').send(DASHBOARD_HTML);
+  } else {
+    reply.send({
+      status: 'ok',
+      service: 'ZeroLabz Sentinel',
+      version: 'v0.1.1-alpha',
+      engine: 'stateless-v1'
+    });
+  }
 });
 
 app.get('/v1/healthz', async (_req, reply) => {
