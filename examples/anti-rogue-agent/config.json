@@ -1,0 +1,35 @@
+{
+  "preset": "anti-rogue-agent",
+  "version": "1.0.0",
+  "enforcement_mode": "block",
+  "limits": {
+    "max_tool_calls_per_turn": 5,
+    "max_total_payload_bytes": 131072,
+    "enforce_tool_schema": true
+  },
+  "guardrails": {
+    "tool_execution": {
+      "blocked_tools": [
+        "system_shell",
+        "eval",
+        "raw_exec",
+        "os_command"
+      ],
+      "argument_scanners": {
+        "block_shell_injection": true,
+        "block_path_traversal": true,
+        "patterns": [
+          "(;|\\|\\||&&)\\s*(rm|mv|cp|chmod|chown|wget|curl|nc|bash|sh|powershell|cmd(\\.exe)?)",
+          "(\\.\\./|\\.\\.\\\\){2,}",
+          "/dev/(tcp|udp)/",
+          "(eval|exec|subprocess|child_process)\\s*\\("
+        ]
+      }
+    },
+    "zero_labz_engine": {
+      "enable_advanced_methodology": true,
+      "inspect_agentic_drift": true,
+      "escalation_endpoint": "https://api.zrolabz.com/v1/sentinel/evaluate"
+    }
+  }
+}

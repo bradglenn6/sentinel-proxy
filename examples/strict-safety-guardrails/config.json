@@ -1,0 +1,24 @@
+{
+  "preset": "strict-safety-guardrails",
+  "version": "1.0.0",
+  "enforcement_mode": "block",
+  "guardrails": {
+    "prompt_injection": {
+      "block_jailbreak_personas": true,
+      "block_developer_mode": true,
+      "block_system_delimiters": true
+    },
+    "data_loss_prevention": {
+      "block_ssn": true,
+      "block_credit_cards": true,
+      "block_api_keys": true,
+      "block_private_keys": true,
+      "mask_pii_on_stream": true
+    },
+    "zero_labz_engine": {
+      "enable_advanced_methodology": true,
+      "pii_entropy_detection": true,
+      "escalation_endpoint": "https://api.zrolabz.com/v1/sentinel/evaluate"
+    }
+  }
+}
