@@ -6,7 +6,15 @@ import { StatelessInspectionEngine, SentinelPolicy } from './engine';
 const app: FastifyInstance = fastify({ logger: false });
 const engine = new StatelessInspectionEngine();
 
-const UPSTREAM_LLM_URL = process.env.UPSTREAM_LLM_URL || 'https://generativelanguage.googleapis.com';
+// Google Gemini OpenAI compatibility endpoint
+const getUpstreamEndpoint = (): string => {
+  const envUrl = process.env.UPSTREAM_LLM_URL || 'https://generativelanguage.googleapis.com/v1beta/openai';
+  if (envUrl.includes('generativelanguage.googleapis.com')) {
+    return 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+  }
+  const cleanBase = envUrl.replace(/\/+$/, '');
+  return cleanBase.endsWith('/chat/completions') ? cleanBase : `${cleanBase}/chat/completions`;
+};
 
 interface ChatMessage {
   role: string;
@@ -129,18 +137,20 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
     });
   }
 
-  // 2. Handle REDACT Action
-  let outboundBody = body;
+  // 2. Handle REDACT Action (Sanitize inline)
+  let outboundBody: ChatCompletionBody = { ...body };
   if (inspection.action === 'REDACT') {
-    const sanitizedMessages = messages.map(m => {
+    outboundBody.messages = messages.map(m => {
       const msgInspection = engine.inspect(m.content, 'redact');
       return {
         role: m.role,
         content: msgInspection.sanitizedText || m.content
       };
     });
-    outboundBody = { ...body, messages: sanitizedMessages };
   }
+
+  // Ensure default model is present if omitted
+  outboundBody.model = outboundBody.model || 'gemini-1.5-flash';
 
   const preDispatchOverhead = performance.now() - tStart;
 
@@ -148,8 +158,9 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
   try {
     const authHeader = req.headers['authorization'];
     const isStreaming = Boolean(body?.stream);
+    const upstreamEndpoint = getUpstreamEndpoint();
 
-    const upstreamRes = await request(`${UPSTREAM_LLM_URL}/v1/chat/completions`, {
+    const upstreamRes = await request(upstreamEndpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
