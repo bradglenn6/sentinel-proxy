@@ -1,3 +1,3 @@
-# ZeroLabz Sentinel Python SDK
-
-Drop-in guardrail SDK routing LLM completions through ZeroLabz Sentinel proxy.
+﻿# ZeroLabz Sentinel Python SDK
+Official drop-in client wrapper for ZeroLabz Sentinel (<0.4ms latency guardrail proxy).
+Install via: pip install zerolabz-sentinel

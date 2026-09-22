@@ -1,0 +1,20 @@
+Metadata-Version: 2.4
+Name: zerolabz-sentinel
+Version: 1.0.0
+Summary: Drop-in Python client SDK for ZeroLabz Sentinel AI guardrail proxy
+Author-email: Bradley Jones <dev@zrolabz.com>
+Project-URL: Homepage, https://sentinel.zrolabz.com
+Project-URL: Repository, https://github.com/bradglenn6/sentinel-proxy
+Project-URL: Bug Tracker, https://github.com/bradglenn6/sentinel-proxy/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Security
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: openai>=1.0.0
+
+﻿# ZeroLabz Sentinel Python SDK
+Official drop-in client wrapper for ZeroLabz Sentinel (<0.4ms latency guardrail proxy).
+Install via: pip install zerolabz-sentinel
