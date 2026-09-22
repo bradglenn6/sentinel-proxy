@@ -1,4 +1,4 @@
-﻿import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { request } from 'undici';
 import { Transform, TransformCallback } from 'stream';
 import { StatelessInspectionEngine, SentinelPolicy } from './engine';
@@ -25,7 +25,7 @@ const renderStatusHtml = () => `
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZeroLabz Sentinel — Active</title>
+  <title>ZeroLabz Sentinel � Active</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0B0F17; color: #E2E8F0; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .card { background: #151E2E; border: 1px solid #264669; border-radius: 12px; padding: 40px; max-width: 520px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
@@ -40,14 +40,14 @@ const renderStatusHtml = () => `
 <body>
   <div class="card">
     <h1>ZeroLabz Sentinel</h1>
-    <div class="status-badge">● Engine Operational</div>
+    <div class="status-badge">? Engine Operational</div>
     <p>Sub-millisecond stateless AI guardrail reverse proxy with inline PII redaction and policy modes.</p>
     <div class="features">
-      <span>● Strict Mode</span>
-      <span>● Inline Redaction</span>
-      <span>● Shadow Audit</span>
+      <span>? Strict Mode</span>
+      <span>? Inline Redaction</span>
+      <span>? Shadow Audit</span>
     </div>
-    <div class="footer">Zero-Trust Infrastructure · <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a></div>
+    <div class="footer">Zero-Trust Infrastructure � <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a></div>
   </div>
 </body>
 </html>
@@ -58,17 +58,58 @@ app.get('/v1', async (_req, reply) => reply.type('text/html').send(renderStatusH
 app.get('/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok', engine: 'stateless-v1' }));
 app.get('/v1/healthz', async (_req, reply) => reply.code(200).send({ status: 'ok', engine: 'stateless-v1' }));
 
+class StreamingGuardrailInterceptor extends Transform {
+  private windowBuffer: string = '';
+  private readonly windowSize: number = 512;
+  private isTerminated: boolean = false;
+
+  constructor() {
+    super();
+  }
+
+  _transform(chunk: Buffer, _encoding: string, callback: TransformCallback): void {
+    if (this.isTerminated) {
+      return callback();
+    }
+
+    const chunkStr = chunk.toString('utf-8');
+    this.windowBuffer += chunkStr;
+    if (this.windowBuffer.length > this.windowSize * 2) {
+      this.windowBuffer = this.windowBuffer.slice(-this.windowSize);
+    }
+
+    const inspection = engine.inspect(this.windowBuffer);
+
+    if (inspection.action === 'BLOCK') {
+      this.isTerminated = true;
+      const errorPayload = {
+        error: {
+          message: `Streaming terminated by ZeroLabz Sentinel: ${inspection.reason}`,
+          type: 'guardrail_stream_violation',
+          code: 400
+        }
+      };
+
+      this.push(`data: ${JSON.stringify(errorPayload)}\n\n`);
+      this.push('data: [DONE]\n\n');
+      this.destroy();
+      return callback();
+    }
+
+    this.push(chunk);
+    callback();
+  }
+}
+
 app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompletionBody }>, reply: FastifyReply) => {
   const tStart = performance.now();
   const body = req.body;
 
-  // Extract policy header: 'strict' (default), 'redact', or 'audit'
   const policyHeader = (req.headers['x-sentinel-policy'] as string)?.toLowerCase();
   const policy: SentinelPolicy = (['strict', 'redact', 'audit'].includes(policyHeader)) 
     ? (policyHeader as SentinelPolicy) 
     : 'strict';
 
-  // Extract text and scan
   const messages = body?.messages || [];
   const combinedText = messages.map(m => m.content).join('\n');
   const inspection = engine.inspect(combinedText, policy);
@@ -88,7 +129,7 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
     });
   }
 
-  // 2. Handle REDACT Action (Sanitize message contents inline)
+  // 2. Handle REDACT Action
   let outboundBody = body;
   if (inspection.action === 'REDACT') {
     const sanitizedMessages = messages.map(m => {
@@ -117,7 +158,6 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
       body: JSON.stringify(outboundBody)
     });
 
-    // Attach Telemetry Headers
     reply.header('X-Sentinel-Policy', policy);
     reply.header('X-Sentinel-Action', inspection.action);
     reply.header('X-Sentinel-Inspection-Ms', inspection.latencyMs.toFixed(3));
@@ -132,7 +172,24 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
       reply.header('X-Sentinel-Audit-Violations', inspection.violations.join(', '));
     }
 
-    return reply.code(upstreamRes.statusCode).send(await upstreamRes.body.json());
+    if (isStreaming) {
+      reply.header('Content-Type', 'text/event-stream');
+      reply.header('Cache-Control', 'no-cache');
+      reply.header('Connection', 'keep-alive');
+
+      const interceptor = new StreamingGuardrailInterceptor();
+      return reply.code(upstreamRes.statusCode).send(upstreamRes.body.pipe(interceptor));
+    } else {
+      const responseText = await upstreamRes.body.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { message: responseText };
+      }
+
+      return reply.code(upstreamRes.statusCode).send(responseData);
+    }
   } catch (err: any) {
     return reply.code(502).send({
       error: {
@@ -151,5 +208,3 @@ app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
   }
   console.log(`[Sentinel] Proxy running on ${address}`);
 });
-
-

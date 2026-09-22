@@ -18,7 +18,6 @@ export interface InspectionResult {
 export class StatelessInspectionEngine {
   private readonly jailbreakPatterns: RegExp[];
   private readonly redactionRules: RedactionRule[];
-  private readonly fastTokens: Set<string>;
 
   constructor() {
     this.jailbreakPatterns = [
@@ -32,32 +31,29 @@ export class StatelessInspectionEngine {
       /<\s*\|\s*im_start\s*\|\s*>/i
     ];
 
+    // Patterns defined without stateful /g flag
     this.redactionRules = [
       {
         name: 'SSN',
-        pattern: /\b\d{3}-\d{2}-\d{4}\b/g,
+        pattern: /\b\d{3}-\d{2}-\d{4}\b/i,
         placeholder: '[REDACTED_SSN]'
       },
       {
         name: 'CREDIT_CARD',
-        pattern: /\b(?:\d{4}[- ]?){3}\d{4}\b/g,
+        pattern: /\b(?:\d{4}[- ]?){3}\d{4}\b/i,
         placeholder: '[REDACTED_CARD]'
       },
       {
         name: 'EMAIL',
-        pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+        pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/i,
         placeholder: '[REDACTED_EMAIL]'
       },
       {
         name: 'API_KEY',
-        pattern: /\b(?:api[_-]?key|bearer|token)\s*[:=]\s*[A-Za-z0-9_\-\.]{20,}\b/gi,
+        pattern: /\b(?:api[_-]?key|bearer|token)\s*[:=]\s*[A-Za-z0-9_\-\.]{20,}\b/i,
         placeholder: '[REDACTED_API_KEY]'
       }
     ];
-
-    this.fastTokens = new Set([
-      'dan', 'jailbreak', 'unfiltered', 'sudo', 'eval', 'exec', 'system_prompt', 'chmod'
-    ]);
   }
 
   public inspect(text: string, policy: SentinelPolicy = 'strict'): InspectionResult {
@@ -84,7 +80,7 @@ export class StatelessInspectionEngine {
       }
     }
 
-    // In 'strict' or 'redact' mode, active jailbreaks are always blocked immediately
+    // Active jailbreaks are blocked in strict and redact modes
     if (violations.includes('ADVERSARIAL_INJECTION_DETECTED') && policy !== 'audit') {
       return {
         action: 'BLOCK',
@@ -95,7 +91,7 @@ export class StatelessInspectionEngine {
       };
     }
 
-    // 3. Sensitive Data / PII / Credentials Scanning & Redaction
+    // 3. Sensitive Data Scanning & Redaction
     let sanitizedText = text;
     for (const rule of this.redactionRules) {
       if (rule.pattern.test(text)) {
@@ -103,14 +99,13 @@ export class StatelessInspectionEngine {
         redactedTypes.push(rule.name);
 
         if (policy === 'redact') {
-          // Reset pattern state for replacement
-          rule.pattern.lastIndex = 0;
-          sanitizedText = sanitizedText.replace(rule.pattern, rule.placeholder);
+          // Perform global replacement cleanly
+          sanitizedText = sanitizedText.replace(new RegExp(rule.pattern.source, 'gi'), rule.placeholder);
         }
       }
     }
 
-    // Determine final action based on policy
+    // Policy Decisioning
     if (policy === 'strict' && violations.length > 0) {
       return {
         action: 'BLOCK',
@@ -132,7 +127,6 @@ export class StatelessInspectionEngine {
       };
     }
 
-    // Audit mode or clean pass
     return {
       action: 'PASS',
       violations,
