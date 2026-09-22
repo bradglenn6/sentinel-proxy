@@ -6,7 +6,6 @@ import { StatelessInspectionEngine, SentinelPolicy } from './engine';
 const app: FastifyInstance = fastify({ logger: false });
 const engine = new StatelessInspectionEngine();
 
-// Google Gemini OpenAI compatibility endpoint
 const getUpstreamEndpoint = (): string => {
   const envUrl = process.env.UPSTREAM_LLM_URL || 'https://generativelanguage.googleapis.com/v1beta/openai';
   if (envUrl.includes('generativelanguage.googleapis.com')) {
@@ -149,14 +148,19 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
     });
   }
 
-  // Ensure default model is present if omitted
   outboundBody.model = outboundBody.model || 'gemini-1.5-flash';
-
   const preDispatchOverhead = performance.now() - tStart;
 
   // 3. Forward to Upstream
   try {
-    const authHeader = req.headers['authorization'];
+    const clientAuth = req.headers['authorization'];
+    const serverKey = process.env.GEMINI_API_KEY;
+
+    // Use client key if valid, otherwise fall back to server's GEMINI_API_KEY
+    const authHeader = (clientAuth && !clientAuth.includes('sentinel-stateless'))
+      ? clientAuth
+      : (serverKey ? `Bearer ${serverKey}` : undefined);
+
     const isStreaming = Boolean(body?.stream);
     const upstreamEndpoint = getUpstreamEndpoint();
 
