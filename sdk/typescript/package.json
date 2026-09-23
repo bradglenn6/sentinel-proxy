@@ -1,1 +1,28 @@
-﻿{"name":"@zerolabz/sentinel-sdk","version":"1.0.0","description":"Drop-in TypeScript client SDK for ZeroLabz Sentinel","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc"},"keywords":["ai-guardrail","llm-security","sentinel","zerolabz"],"author":"Bradley Jones <dev@zrolabz.com>","license":"MIT","repository":{"type":"git","url":"git+https://github.com/bradglenn6/sentinel-proxy.git"},"homepage":"https://sentinel.zrolabz.com","devDependencies":{"typescript":"^5.5.2"}}
+{
+  "name": "zerolabz-sentinel",
+  "version": "1.0.0",
+  "description": "Drop-in TypeScript client SDK for ZeroLabz Sentinel AI guardrail proxy",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "ai-guardrail",
+    "llm-security",
+    "prompt-injection",
+    "sentinel",
+    "zerolabz",
+    "openai"
+  ],
+  "author": "Bradley Jones <dev@zrolabz.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bradglenn6/sentinel-proxy.git"
+  },
+  "homepage": "https://sentinel.zrolabz.com",
+  "devDependencies": {
+    "typescript": "^5.5.2"
+  }
+}
