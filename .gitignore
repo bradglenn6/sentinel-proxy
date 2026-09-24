@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.log
 .env
+target/
+**/target/
+*.exe
+*.pdb
