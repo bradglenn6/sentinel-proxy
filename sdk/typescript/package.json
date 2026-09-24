@@ -1,6 +1,6 @@
 {
   "name": "zerolabz-sentinel",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Drop-in TypeScript client SDK for ZeroLabz Sentinel AI guardrail proxy",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
