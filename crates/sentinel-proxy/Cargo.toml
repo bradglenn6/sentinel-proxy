@@ -1,0 +1,27 @@
+[package]
+name = "sentinel-proxy"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bradley Jones <dev@zrolabz.com>"]
+description = "Ultra-low-latency guardrail reverse proxy for LLMs"
+license = "MIT"
+
+[dependencies]
+# Local core engine
+sentinel-core = { path = "../sentinel-core" }
+
+# Async runtime & Web framework
+tokio = { version = "1.38", features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# HTTP client for upstream forwarding
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging / Diagnostics
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

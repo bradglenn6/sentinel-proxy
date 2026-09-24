@@ -1,0 +1,17 @@
+[package]
+name = "sentinel-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bradley Jones <dev@zrolabz.com>"]
+description = "Ultra-low-latency stateless AI guardrail inspection engine in Rust"
+license = "MIT"
+
+[dependencies]
+regex = "1.10.6"
+base64 = "0.22.1"
+unicode-normalization = "0.1.23"
+
+[[bin]]
+name = "benchmark"
+path = "src/main.rs"
+
