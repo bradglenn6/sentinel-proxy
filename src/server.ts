@@ -2,6 +2,7 @@ import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { request } from 'undici';
 import { Transform, TransformCallback } from 'stream';
 import { StatelessInspectionEngine, SentinelPolicy } from './engine';
+import { AuditLogger } from './logger';
 
 const app: FastifyInstance = fastify({ logger: false });
 const engine = new StatelessInspectionEngine();
@@ -48,11 +49,11 @@ const renderStatusHtml = () => `
   <div class="card">
     <h1>ZeroLabz Sentinel</h1>
     <div class="status-badge">? Engine Operational</div>
-    <p>Sub-millisecond stateless AI guardrail reverse proxy with inline PII redaction and policy modes.</p>
+    <p>Sub-millisecond stateless AI guardrail reverse proxy with inline PII redaction and cloud audit logging.</p>
     <div class="features">
       <span>? Strict Mode</span>
       <span>? Inline Redaction</span>
-      <span>? Shadow Audit</span>
+      <span>? Cloud Audit Logs</span>
     </div>
     <div class="footer">Zero-Trust Infrastructure · <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a></div>
   </div>
@@ -89,6 +90,17 @@ class StreamingGuardrailInterceptor extends Transform {
 
     if (inspection.action === 'BLOCK') {
       this.isTerminated = true;
+      AuditLogger.logEvent({
+        severity: 'WARNING',
+        event: 'guardrail_blocked',
+        action: 'BLOCK',
+        policy: 'streaming',
+        violations: inspection.violations,
+        redactedTypes: [],
+        latencyMs: inspection.latencyMs,
+        message: `Outbound stream terminated: ${inspection.reason}`
+      });
+
       const errorPayload = {
         error: {
           message: `Streaming terminated by ZeroLabz Sentinel: ${inspection.reason}`,
@@ -111,6 +123,7 @@ class StreamingGuardrailInterceptor extends Transform {
 app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompletionBody }>, reply: FastifyReply) => {
   const tStart = performance.now();
   const body = req.body;
+  const traceId = (req.headers['x-cloud-trace-context'] as string) || '';
 
   const policyHeader = (req.headers['x-sentinel-policy'] as string)?.toLowerCase();
   const policy: SentinelPolicy = (['strict', 'redact', 'audit'].includes(policyHeader)) 
@@ -124,6 +137,22 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
   // 1. Handle BLOCK Action
   if (inspection.action === 'BLOCK') {
     const preDispatchOverhead = performance.now() - tStart;
+    
+    // Structured Cloud Logging
+    AuditLogger.logEvent({
+      severity: 'WARNING',
+      event: 'guardrail_blocked',
+      action: 'BLOCK',
+      policy,
+      violations: inspection.violations,
+      redactedTypes: [],
+      latencyMs: preDispatchOverhead,
+      model: body?.model,
+      clientIp: req.ip,
+      traceId,
+      message: `Sentinel blocked: ${inspection.reason}`
+    });
+
     return reply.code(400).send({
       error: {
         message: `Blocked by ZeroLabz Sentinel: ${inspection.reason}`,
@@ -136,7 +165,7 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
     });
   }
 
-  // 2. Handle REDACT Action (Sanitize inline)
+  // 2. Handle REDACT Action
   let outboundBody: ChatCompletionBody = { ...body };
   if (inspection.action === 'REDACT') {
     outboundBody.messages = messages.map(m => {
@@ -151,12 +180,56 @@ app.post('/v1/chat/completions', async (req: FastifyRequest<{ Body: ChatCompleti
   outboundBody.model = outboundBody.model || 'gemini-1.5-flash';
   const preDispatchOverhead = performance.now() - tStart;
 
+  // Log Redaction or Audit Event
+  if (inspection.action === 'REDACT') {
+    AuditLogger.logEvent({
+      severity: 'INFO',
+      event: 'guardrail_redacted',
+      action: 'REDACT',
+      policy,
+      violations: inspection.violations,
+      redactedTypes: inspection.redactedTypes,
+      latencyMs: preDispatchOverhead,
+      model: outboundBody.model,
+      clientIp: req.ip,
+      traceId,
+      message: `Sentinel sanitized sensitive data: ${inspection.redactedTypes.join(', ')}`
+    });
+  } else if (policy === 'audit' && inspection.violations.length > 0) {
+    AuditLogger.logEvent({
+      severity: 'WARNING',
+      event: 'guardrail_audit_flagged',
+      action: 'PASS',
+      policy,
+      violations: inspection.violations,
+      redactedTypes: [],
+      latencyMs: preDispatchOverhead,
+      model: outboundBody.model,
+      clientIp: req.ip,
+      traceId,
+      message: `Sentinel shadow audit flagged: ${inspection.violations.join(', ')}`
+    });
+  } else {
+    AuditLogger.logEvent({
+      severity: 'INFO',
+      event: 'guardrail_pass',
+      action: 'PASS',
+      policy,
+      violations: [],
+      redactedTypes: [],
+      latencyMs: preDispatchOverhead,
+      model: outboundBody.model,
+      clientIp: req.ip,
+      traceId,
+      message: 'Sentinel guardrail pass'
+    });
+  }
+
   // 3. Forward to Upstream
   try {
     const clientAuth = req.headers['authorization'];
     const serverKey = process.env.GEMINI_API_KEY;
 
-    // Use client key if valid, otherwise fall back to server's GEMINI_API_KEY
     const authHeader = (clientAuth && !clientAuth.includes('sentinel-stateless'))
       ? clientAuth
       : (serverKey ? `Bearer ${serverKey}` : undefined);
