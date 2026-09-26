@@ -25,7 +25,9 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let upstream_url = std::env::var("UPSTREAM_URL")
-        .unwrap_or_else(|_| "https://api.openai.com".to_string());
+        .unwrap_or_else(|_| "https://api.openai.com".to_string())
+        .trim_matches(|c| c == '"' || c == '\'' || c == ' ' || c == '/')
+        .to_string();
 
     let default_policy = match std::env::var("SENTINEL_POLICY").as_deref() {
         Ok("REDACT") => SentinelPolicy::Redact,
@@ -107,7 +109,9 @@ async fn chat_completions(
     let is_streaming = payload.get("stream").and_then(|s| s.as_bool()).unwrap_or(false);
 
     // 3. Build upstream request
-    let upstream_target = format!("{}/v1/chat/completions", state.upstream_url.trim_end_matches('/'));
+    let clean_upstream = state.upstream_url.trim_matches(|c| c == '"' || c == '\'' || c == ' ' || c == '/');
+    let upstream_target = format!("{}/v1/chat/completions", clean_upstream);
+    info!("🚀 Forwarding clean prompt to upstream: {}", upstream_target);
     let mut req_builder = state.client.post(&upstream_target);
 
     // Explicitly pass authentication and client headers
