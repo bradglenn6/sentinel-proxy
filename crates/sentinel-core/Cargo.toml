@@ -10,8 +10,9 @@ license = "MIT"
 regex = "1.10.6"
 base64 = "0.22.1"
 unicode-normalization = "0.1.23"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
 
 [[bin]]
 name = "benchmark"
 path = "src/main.rs"
-

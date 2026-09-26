@@ -34,7 +34,9 @@ async fn main() {
     };
 
     let state = Arc::new(AppState {
-        engine: StatelessEngine::new(),
+        engine: StatelessEngine::load_or_default(
+            std::env::var("SENTINEL_CONFIG").unwrap_or_else(|_| "sentinel.toml".to_string())
+        ),
         client: Client::builder().build().expect("Failed to build HTTP client"),
         upstream_url,
         default_policy,

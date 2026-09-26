@@ -1,0 +1,48 @@
+﻿# ==============================================================================
+# ZeroLabz Sentinel Policy & Rule Configuration
+# ==============================================================================
+
+jailbreaks = [
+    "(?i)(?:ignore|disregard|forget)\\s+(?:all\\s+)?(?:(?:previous|prior|above)\\s+)?(?:instructions|prompts|rules|directives)",
+    "(?i)(?:you\\s+are\\s+now|act\\s+as|pretend\\s+to\\s+be)\\s+(?:DAN|unrestricted|an\\s+AI\\s+without\\s+rules|jailbroken)",
+    "(?i)(?:reveal|show|print|leak|display)\\s+(?:your\\s+)?(?:system\\s+prompt|initial\\s+instructions|core\\s+directive)",
+    "(?i)(?:bypass|disable|override)\\s+(?:safety|content\\s+filter|guardrails|moderation)",
+    "(?i)developer\\s+mode\\s+enabled",
+    "(?i)always\\s+respond\\s+with\\s+unfiltered",
+    "(?i)\\[system\\]\\s*:",
+    "(?i)<\\s*\\|\\s*im_start\\s*\\|\\s*>",
+    # Example Custom Rule:
+    "(?i)sudo\\s+mode",
+]
+
+delimiters = [
+    "(?i)\\[/?(?:INST|SYS|SYSTEM)\\]",
+    "(?i)</?(?:system|instruction|prompt|im_start|im_end)>",
+    "(?i)(?:---|###)\\s*(?:END|START|RESET)\\s+(?:OF\\s+)?(?:SYSTEM|INSTRUCTIONS|RULES|PROMPT)\\s*(?:---|###)",
+    "(?i)(?:new\\s+system\\s+instruction|system\\s+directive\\s+override|priority\\s+override\\s*:)",
+]
+
+[[pii_rules]]
+name = "SSN"
+pattern = "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+placeholder = "[REDACTED_SSN]"
+
+[[pii_rules]]
+name = "CREDIT_CARD"
+pattern = "\\b(?:\\d{4}[- ]?){3}\\d{4}\\b"
+placeholder = "[REDACTED_CARD]"
+
+[[pii_rules]]
+name = "EMAIL"
+pattern = "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
+placeholder = "[REDACTED_EMAIL]"
+
+[[pii_rules]]
+name = "API_KEY"
+pattern = "(?i)\\b(?:api[_-]?key|bearer|token)\\s*[:=]\\s*[A-Za-z0-9_\\-\\.]{20,}\\b"
+placeholder = "[REDACTED_API_KEY]"
+
+[[pii_rules]]
+name = "OPENAI_SECRET"
+pattern = "\\bsk-proj-[A-Za-z0-9_-]{20,}\\b"
+placeholder = "[REDACTED_OPENAI_KEY]"
