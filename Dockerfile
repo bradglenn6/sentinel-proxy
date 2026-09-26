@@ -44,4 +44,3 @@ ENV RUST_LOG=info
 EXPOSE 8080
 
 CMD ["/app/sentinel-proxy"]
-'@ | Set-Content -Path Dockerfile -Encoding utf8
