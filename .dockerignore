@@ -1,0 +1,7 @@
+﻿target/
+**/target/
+.git
+.gitignore
+payload.json
+*.pdb
+*.exe
