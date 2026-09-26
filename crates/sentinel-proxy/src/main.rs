@@ -110,8 +110,16 @@ async fn chat_completions(
     let upstream_target = format!("{}/v1/chat/completions", state.upstream_url.trim_end_matches('/'));
     let mut req_builder = state.client.post(&upstream_target);
 
+    // Forward client authentication and provider headers (ignoring cloud infrastructure headers)
     for (key, value) in &headers {
-        if key != "host" && key != "content-length" {
+        let key_str = key.as_str().to_ascii_lowercase();
+        if key_str == "authorization"
+            || key_str == "openai-organization"
+            || key_str == "openai-project"
+            || key_str == "x-api-key"
+            || key_str == "accept"
+            || key_str == "user-agent"
+        {
             req_builder = req_builder.header(key, value);
         }
     }
