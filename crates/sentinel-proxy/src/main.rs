@@ -110,29 +110,29 @@ async fn chat_completions(
     let upstream_target = format!("{}/v1/chat/completions", state.upstream_url.trim_end_matches('/'));
     let mut req_builder = state.client.post(&upstream_target);
 
-    // Forward client authentication and provider headers (ignoring cloud infrastructure headers)
-    for (key, value) in &headers {
-        let key_str = key.as_str().to_ascii_lowercase();
-        if key_str == "authorization"
-            || key_str == "openai-organization"
-            || key_str == "openai-project"
-            || key_str == "x-api-key"
-            || key_str == "accept"
-            || key_str == "user-agent"
-        {
-            req_builder = req_builder.header(key, value);
-        }
+    // Explicitly pass authentication and client headers
+    if let Some(auth) = headers.get("authorization").and_then(|v| v.to_str().ok()) {
+        req_builder = req_builder.header("authorization", auth);
+    }
+    if let Some(org) = headers.get("openai-organization").and_then(|v| v.to_str().ok()) {
+        req_builder = req_builder.header("openai-organization", org);
+    }
+    if let Some(proj) = headers.get("openai-project").and_then(|v| v.to_str().ok()) {
+        req_builder = req_builder.header("openai-project", proj);
+    }
+    if let Some(key) = headers.get("x-api-key").and_then(|v| v.to_str().ok()) {
+        req_builder = req_builder.header("x-api-key", key);
     }
 
     let upstream_res = match req_builder.json(&payload).send().await {
         Ok(res) => res,
         Err(err) => {
-            error!("Upstream connection failed: {}", err);
+            error!("Upstream connection failed: {:?} | source: {:?}", err, std::error::Error::source(&err));
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({
                     "error": {
-                        "message": "Sentinel Proxy: upstream connection failed",
+                        "message": format!("Sentinel Proxy: upstream connection failed ({})", err),
                         "type": "bad_gateway"
                     }
                 })),
