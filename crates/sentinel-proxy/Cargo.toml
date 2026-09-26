@@ -14,6 +14,9 @@ sentinel-core = { path = "../sentinel-core" }
 tokio = { version = "1.38", features = ["full"] }
 axum = { version = "0.7", features = ["macros"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+futures-util = "0.3"
+async-stream = "0.3"
+bytes = "1"
 
 # HTTP client for upstream forwarding
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }

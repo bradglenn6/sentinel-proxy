@@ -1,11 +1,13 @@
 use std::sync::Arc;
 use axum::{
+    body::Body,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use futures_util::stream::StreamExt;
 use reqwest::Client;
 use serde_json::{json, Value};
 use sentinel_core::{SentinelAction, SentinelPolicy, StatelessEngine};
@@ -25,11 +27,10 @@ async fn main() {
     let upstream_url = std::env::var("UPSTREAM_URL")
         .unwrap_or_else(|_| "https://api.openai.com".to_string());
 
-    // Policy can be set globally via environment variable: STRICT, REDACT, or AUDIT
     let default_policy = match std::env::var("SENTINEL_POLICY").as_deref() {
         Ok("REDACT") => SentinelPolicy::Redact,
         Ok("AUDIT") => SentinelPolicy::Audit,
-        _ => SentinelPolicy::Strict, // Default to Strict (block jailbreaks)
+        _ => SentinelPolicy::Strict,
     };
 
     let state = Arc::new(AppState {
@@ -61,7 +62,7 @@ async fn chat_completions(
     headers: HeaderMap,
     Json(mut payload): Json<Value>,
 ) -> Response {
-    // 1. Determine policy (per-request header override "x-sentinel-policy", or fallback to server default)
+    // 1. Determine policy (header override or server default)
     let policy = match headers.get("x-sentinel-policy").and_then(|v| v.to_str().ok()) {
         Some(p) if p.eq_ignore_ascii_case("redact") => SentinelPolicy::Redact,
         Some(p) if p.eq_ignore_ascii_case("audit") => SentinelPolicy::Audit,
@@ -69,7 +70,7 @@ async fn chat_completions(
         _ => state.default_policy,
     };
 
-    // 2. Inbound inspection: scan messages array
+    // 2. Inbound inspection: scan messages
     if let Some(messages) = payload.get_mut("messages").and_then(|m| m.as_array_mut()) {
         for msg in messages {
             if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
@@ -77,7 +78,7 @@ async fn chat_completions(
 
                 match inspection.action {
                     SentinelAction::Block(reason) => {
-                        warn!("⛔ Guardrail violation blocked: '{}' | Violations: {:?}", reason, inspection.violations);
+                        warn!("⛔ Inbound violation blocked: '{}' | Violations: {:?}", reason, inspection.violations);
                         return (
                             StatusCode::FORBIDDEN,
                             Json(json!({
@@ -90,38 +91,34 @@ async fn chat_completions(
                             })),
                         ).into_response();
                     }
-                    SentinelAction::Redact(ref redacted_terms) => {
-                        info!("✏️ Guardrail redacted terms: {:?} | Replacing content in-place", redacted_terms);
+                    SentinelAction::Redact(ref redacted) => {
+                        info!("✏️ Inbound redacted terms: {:?}", redacted);
                         msg["content"] = json!(inspection.sanitized_text);
                     }
-                    SentinelAction::Pass => {
-                        // Prompt passed inspection cleanly
-                    }
+                    SentinelAction::Pass => {}
                 }
             }
         }
     }
 
-    // 3. Forward clean/redacted request to upstream provider
-    let upstream_target = format!("{}/v1/chat/completions", state.upstream_url.trim_end_matches('/'));
+    // Check if the client requested streaming
+    let is_streaming = payload.get("stream").and_then(|s| s.as_bool()).unwrap_or(false);
 
+    // 3. Build upstream request
+    let upstream_target = format!("{}/v1/chat/completions", state.upstream_url.trim_end_matches('/'));
     let mut req_builder = state.client.post(&upstream_target);
+
     for (key, value) in &headers {
-        // Forward authentication, custom headers, etc. (skipping host)
-        if key != "host" {
+        if key != "host" && key != "content-length" {
             req_builder = req_builder.header(key, value);
         }
     }
 
-    match req_builder.json(&payload).send().await {
-        Ok(res) => {
-            let status = res.status();
-            let body_bytes = res.bytes().await.unwrap_or_default();
-            (status, body_bytes).into_response()
-        }
+    let upstream_res = match req_builder.json(&payload).send().await {
+        Ok(res) => res,
         Err(err) => {
-            error!("Failed to forward request to upstream: {}", err);
-            (
+            error!("Upstream connection failed: {}", err);
+            return (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({
                     "error": {
@@ -129,7 +126,78 @@ async fn chat_completions(
                         "type": "bad_gateway"
                     }
                 })),
-            ).into_response()
+            ).into_response();
         }
+    };
+
+    let status = upstream_res.status();
+
+    // 4. Handle Streaming Response
+    if is_streaming && status.is_success() {
+        let state_clone = Arc::clone(&state);
+        let upstream_stream = upstream_res.bytes_stream();
+
+        // 512-byte sliding window ring buffer across chunk boundaries
+        let mut sliding_window = String::with_capacity(1024);
+
+        let sse_stream = async_stream::stream! {
+            tokio::pin!(upstream_stream);
+
+            while let Some(chunk_result) = upstream_stream.next().await {
+                match chunk_result {
+                    Ok(bytes) => {
+                        if let Ok(text) = std::str::from_utf8(&bytes) {
+                            sliding_window.push_str(text);
+
+                            // Keep sliding window at maximum ~512 characters
+                            if sliding_window.len() > 512 {
+                                let trim_idx = sliding_window.len() - 512;
+                                sliding_window.drain(..trim_idx);
+                            }
+
+                            // Run DFA scan over the sliding window
+                            let inspection = state_clone.engine.inspect(&sliding_window, policy);
+                            if let SentinelAction::Block(reason) = inspection.action {
+                                warn!("🚨 Outbound streaming leak intercepted: '{}'. Tripping circuit breaker!", reason);
+                                
+                                // Emit structured SSE violation and terminate stream
+                                yield Ok::<_, std::io::Error>(bytes::Bytes::from(format!(
+                                    "data: {}\n\ndata: [DONE]\n\n",
+                                    json!({
+                                        "error": {
+                                            "message": format!("Outbound guardrail triggered: {}", reason),
+                                            "type": "sentinel_stream_violation",
+                                            "code": "leak_detected"
+                                        }
+                                    })
+                                )));
+                                break;
+                            }
+                        }
+
+                        // Emit safe chunk downstream immediately
+                        yield Ok(bytes);
+                    }
+                    Err(e) => {
+                        error!("Error reading upstream chunk: {}", e);
+                        break;
+                    }
+                }
+            }
+        };
+
+        return (
+            status,
+            [
+                (header::CONTENT_TYPE, "text/event-stream"),
+                (header::CACHE_CONTROL, "no-cache"),
+                (header::CONNECTION, "keep-alive"),
+            ],
+            Body::from_stream(sse_stream),
+        ).into_response();
     }
+
+    // 5. Non-streaming fallback
+    let body_bytes = upstream_res.bytes().await.unwrap_or_default();
+    (status, body_bytes).into_response()
 }
