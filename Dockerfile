@@ -1,4 +1,5 @@
-﻿# ==============================================================================
+﻿@'
+# ==============================================================================
 # Stage 1: Official Cargo-Chef with Latest Rust Compiler
 # ==============================================================================
 FROM lukemathwalker/cargo-chef:latest-rust-bookworm AS chef
@@ -34,8 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 RUN useradd -m -u 10001 -s /bin/bash sentinel
 USER sentinel
 
-# Copy the compiled binary from the builder stage
+# Copy the compiled binary and the configuration file
 COPY --from=builder --chown=sentinel:sentinel /app/target/release/sentinel-proxy /app/sentinel-proxy
+COPY --from=builder --chown=sentinel:sentinel /app/sentinel.toml /app/sentinel.toml
 
 # Port configuration (Cloud Run standard: PORT=8080)
 ENV PORT=8080
@@ -43,3 +45,4 @@ ENV RUST_LOG=info
 EXPOSE 8080
 
 CMD ["/app/sentinel-proxy"]
+'@ | Set-Content -Path Dockerfile -Encoding utf8
