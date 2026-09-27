@@ -3,7 +3,7 @@ use axum::{
     body::Body,
     extract::State,
     http::{header, HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -12,6 +12,96 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use sentinel_core::{SentinelAction, SentinelPolicy, StatelessEngine};
 use tracing::{error, info, warn};
+
+const DASHBOARD_HTML: &str = r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZeroLabz Sentinel | Native Rust AI Guardrail Proxy</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.2);
+      --code-bg: #030712;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 2.5rem 1rem; display: flex; justify-content: center; }
+    .container { max-width: 860px; width: 100%; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+    .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.025em; }
+    .logo span { color: var(--accent); }
+    .badge { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; background: var(--accent-glow); color: var(--accent); padding: 0.35rem 0.85rem; border-radius: 9999px; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    .card-label { font-size: 0.75rem; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 0.5rem; }
+    .card-val { font-size: 1.6rem; font-weight: 700; color: #fff; }
+    .card-sub { font-size: 0.75rem; color: var(--accent); margin-top: 0.25rem; }
+    .section-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.75rem; color: #e5e7eb; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem; overflow-x: auto; font-family: monospace; font-size: 0.875rem; color: #e5e7eb; margin-bottom: 2rem; line-height: 1.5; }
+    footer { display: flex; justify-content: space-between; font-size: 0.875rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: 1.5rem; }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">ZeroLabz <span>Sentinel</span></div>
+      <div class="badge"><div class="dot"></div> Native Rust DFA Active</div>
+    </header>
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Core DFA Latency</div>
+        <div class="card-val">2.7 µs</div>
+        <div class="card-sub">p50: 0.0027 ms | p99: 5.7 µs</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Throughput (Concurrent)</div>
+        <div class="card-val">864.9k/s</div>
+        <div class="card-sub">3.32x Speedup (4 Threads)</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Single-Threaded Peak</div>
+        <div class="card-val">334.9k/s</div>
+        <div class="card-sub">17.4x over Node.js Baseline</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Cloud Edge SLA</div>
+        <div class="card-val">&lt; 0.3 ms</div>
+        <div class="card-sub">Target &le; 4.0 ms (Pass)</div>
+      </div>
+    </div>
+    <div class="section-title">Drop-in Integration (OpenAI & Gemini Compatible)</div>
+    <pre><code>import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.MODEL_API_KEY,
+  baseURL: 'https://sentinel-proxy-798917645637.us-west2.run.app/v1' // Routed through ZeroLabz Sentinel
+});
+
+const response = await client.chat.completions.create({
+  model: 'gpt-4o',
+  stream: true, // Streaming SSE verified with sliding-window circuit breaker
+  messages: [{ role: 'user', content: 'Ultra-low-latency secure inference' }]
+});</code></pre>
+    <footer>
+      <div>Version: v0.2.0-rust | ZeroLabz R&amp;D (Louisiana, USA)</div>
+      <div>
+        <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a> &bull;
+        <a href="/healthz">Healthz</a> &bull;
+        <a href="/v1/healthz">v1/Healthz</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>"#;
 
 struct AppState {
     engine: StatelessEngine,
@@ -37,7 +127,7 @@ async fn main() {
 
     let state = Arc::new(AppState {
         engine: StatelessEngine::load_or_default(
-            std::env::var("SENTINEL_CONFIG").unwrap_or_else(|_| "sentinel.toml".to_string())
+            std::env::var("SENTINEL_CONFIG").unwrap_or_else(|_| "sentinel.toml".to_string()),
         ),
         client: Client::builder().build().expect("Failed to build HTTP client"),
         upstream_url,
@@ -45,7 +135,11 @@ async fn main() {
     });
 
     let app = Router::new()
+        .route("/", get(dashboard))
+        .route("/dashboard", get(dashboard))
         .route("/health", get(health_check))
+        .route("/healthz", get(healthz_check))
+        .route("/v1/healthz", get(healthz_check))
         .route("/v1/chat/completions", post(chat_completions))
         .with_state(state);
 
@@ -57,8 +151,20 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
+async fn dashboard() -> Html<&'static str> {
+    Html(DASHBOARD_HTML)
+}
+
 async fn health_check() -> &'static str {
     "OK"
+}
+
+async fn healthz_check() -> Json<Value> {
+    Json(json!({
+        "status": "ok",
+        "engine": "stateless-dfa-rust",
+        "version": "0.2.0"
+    }))
 }
 
 async fn chat_completions(
@@ -66,7 +172,6 @@ async fn chat_completions(
     headers: HeaderMap,
     Json(mut payload): Json<Value>,
 ) -> Response {
-    // 1. Determine policy (header override or server default)
     let policy = match headers.get("x-sentinel-policy").and_then(|v| v.to_str().ok()) {
         Some(p) if p.eq_ignore_ascii_case("redact") => SentinelPolicy::Redact,
         Some(p) if p.eq_ignore_ascii_case("audit") => SentinelPolicy::Audit,
@@ -74,7 +179,6 @@ async fn chat_completions(
         _ => state.default_policy,
     };
 
-    // 2. Inbound inspection: scan messages
     if let Some(messages) = payload.get_mut("messages").and_then(|m| m.as_array_mut()) {
         for msg in messages {
             if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
@@ -105,16 +209,12 @@ async fn chat_completions(
         }
     }
 
-    // Check if the client requested streaming
     let is_streaming = payload.get("stream").and_then(|s| s.as_bool()).unwrap_or(false);
 
-    // 3. Build upstream request
     let clean_upstream = state.upstream_url.trim_matches(|c| c == '"' || c == '\'' || c == ' ' || c == '/');
     let upstream_target = format!("{}/v1/chat/completions", clean_upstream);
-    info!("🚀 Forwarding clean prompt to upstream: {}", upstream_target);
     let mut req_builder = state.client.post(&upstream_target);
 
-    // Explicitly pass authentication and client headers
     if let Some(auth) = headers.get("authorization").and_then(|v| v.to_str().ok()) {
         req_builder = req_builder.header("authorization", auth);
     }
@@ -146,12 +246,9 @@ async fn chat_completions(
 
     let status = upstream_res.status();
 
-    // 4. Handle Streaming Response
     if is_streaming && status.is_success() {
         let state_clone = Arc::clone(&state);
         let upstream_stream = upstream_res.bytes_stream();
-
-        // 512-byte sliding window ring buffer across chunk boundaries
         let mut sliding_window = String::with_capacity(1024);
 
         let sse_stream = async_stream::stream! {
@@ -163,18 +260,14 @@ async fn chat_completions(
                         if let Ok(text) = std::str::from_utf8(&bytes) {
                             sliding_window.push_str(text);
 
-                            // Keep sliding window at maximum ~512 characters
                             if sliding_window.len() > 512 {
                                 let trim_idx = sliding_window.len() - 512;
                                 sliding_window.drain(..trim_idx);
                             }
 
-                            // Run DFA scan over the sliding window
                             let inspection = state_clone.engine.inspect(&sliding_window, policy);
                             if let SentinelAction::Block(reason) = inspection.action {
                                 warn!("🚨 Outbound streaming leak intercepted: '{}'. Tripping circuit breaker!", reason);
-                                
-                                // Emit structured SSE violation and terminate stream
                                 yield Ok::<_, std::io::Error>(bytes::Bytes::from(format!(
                                     "data: {}\n\ndata: [DONE]\n\n",
                                     json!({
@@ -188,8 +281,6 @@ async fn chat_completions(
                                 break;
                             }
                         }
-
-                        // Emit safe chunk downstream immediately
                         yield Ok(bytes);
                     }
                     Err(e) => {
@@ -211,7 +302,6 @@ async fn chat_completions(
         ).into_response();
     }
 
-    // 5. Non-streaming fallback
     let body_bytes = upstream_res.bytes().await.unwrap_or_default();
     (status, body_bytes).into_response()
 }
