@@ -1,4 +1,4 @@
-name: Sentinel Continuous Integration & Deployment
+﻿name: Sentinel Continuous Integration & Pages Deployment
 
 on:
   push:
@@ -7,93 +7,64 @@ on:
     branches: [ main ]
 
 permissions:
+  contents: write
+  pages: write
   id-token: write
-  contents: read
 
-env:
-  PROJECT_ID: 'gen-lang-client-0973854052'
-  PROJECT_NUMBER: '798917645637'
-  REGION: 'us-central1'
-  SERVICE_NAME: 'sentinel-proxy'
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/798917645637/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider'
-  SERVICE_ACCOUNT: 'sentinel-cicd-deployer@gen-lang-client-0973854052.iam.gserviceaccount.com'
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
 
 jobs:
   validate:
-    name: Lint, Test & Latency SLA Gate
+    name: Rust Workspace Validation & Benchmark Gate
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Runtime
-        uses: actions/setup-node@v4
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo Cache
+        uses: actions/cache@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: Workspace Compilation Check
+        run: cargo check --workspace
 
-      - name: TypeScript Typecheck
-        run: npm run typecheck
+      - name: Execute Native Rust Microbenchmark
+        run: cargo run --release --bin benchmark --manifest-path crates/sentinel-core/Cargo.toml
 
-      - name: Compile TypeScript
-        run: npm run build
-
-      - name: Execute In-Memory Latency SLA Gate (<= 4.0ms)
-        run: node benchmark/engine_test.js
-
-  deploy:
-    name: Deploy to Cloud Run (WIF)
+  deploy-pages:
+    name: Deploy GitHub Pages Dashboard
     needs: validate
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud (Workload Identity)
-        uses: google-github-actions/auth@v2
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.SERVICE_ACCOUNT }}
+          path: 'docs'
 
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy Revision to Cloud Run
-        run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --source . \
-            --region ${{ env.REGION }} \
-            --allow-unauthenticated \
-            --ingress all \
-            --set-env-vars UPSTREAM_LLM_URL="https://generativelanguage.googleapis.com" \
-            --quiet
-
-      - name: Live Endpoint Smoke Test
-        run: |
-          echo "Polling https://sentinel.zrolabz.com/v1/healthz for readiness..."
-          MAX_ATTEMPTS=12
-          ATTEMPT=1
-          SUCCESS=false
-
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-            STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://sentinel.zrolabz.com/v1/healthz || true)
-            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: HTTP $STATUS_CODE"
-            if [ "$STATUS_CODE" -eq 200 ]; then
-              SUCCESS=true
-              break
-            fi
-            sleep 5
-            ATTEMPT=$((ATTEMPT + 1))
-          done
-
-          if [ "$SUCCESS" = false ]; then
-            echo "Smoke test failed after $MAX_ATTEMPTS attempts."
-            exit 1
-          fi
-          echo "Live endpoint verified healthy (HTTP 200)!"
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
