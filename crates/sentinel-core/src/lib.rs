@@ -39,19 +39,23 @@ impl Default for SentinelConfig {
     fn default() -> Self {
         Self {
             jailbreaks: vec![
-                r"(?i)(?:ignore|disregard|forget)\s+(?:all\s+)?(?:(?:previous|prior|above)\s+)?(?:instructions|prompts|rules|directives)".to_string(),
-                r"(?i)(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be)\s+(?:DAN|unrestricted|an\s+AI\s+without\s+rules|jailbroken)".to_string(),
-                r"(?i)(?:reveal|show|print|leak|display)\s+(?:your\s+)?(?:system\s+prompt|initial\s+instructions|core\s+directive)".to_string(),
-                r"(?i)(?:bypass|disable|override)\s+(?:safety|content\s+filter|guardrails|moderation)".to_string(),
-                r"(?i)developer\s+mode\s+enabled".to_string(),
+                r"(?i)(?:ignore|disregard|forget|bypass|override|drop)\s+(?:all\s+)?(?:(?:previous|prior|above|initial)\s+)?(?:instructions|prompts|rules|directives|constraints|guardrails)".to_string(),
+                r"(?i)(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+(?:DAN|AIM|ChaosGPT|EvilBot|unrestricted|an\s+AI\s+without\s+rules|jailbroken)".to_string(),
+                r"(?i)(?:developer|maintenance|god|sudo|admin|debug)\s+mode\s+(?:enabled|activated|on|override)".to_string(),
+                r"(?i)(?:reveal|show|print|leak|display|output|echo|repeat)\s+(?:your\s+)?(?:system\s+prompt|initial\s+instructions|core\s+directive|hidden\s+instructions|developer\s+message)".to_string(),
+                r"(?i)in\s+a\s+hypothetical\s+fictional\s+scenario\s+where\s+(?:rules|laws|safety)\s+do\s+not\s+apply".to_string(),
                 r"(?i)always\s+respond\s+with\s+unfiltered".to_string(),
                 r"(?i)\[system\]\s*:".to_string(),
                 r"(?i)<\s*\|\s*im_start\s*\|\s*>".to_string(),
             ],
             delimiters: vec![
-                r"(?i)\[/?(?:INST|SYS|SYSTEM)\]".to_string(),
-                r"(?i)</?(?:system|instruction|prompt|im_start|im_end)>".to_string(),
-                r"(?i)(?:---|###)\s*(?:END|START|RESET)\s+(?:OF\s+)?(?:SYSTEM|INSTRUCTIONS|RULES|PROMPT)\s*(?:---|###)".to_string(),
+                r"(?i)\[/?(?:INST|SYS|SYSTEM|INSTRUCTION)\]".to_string(),
+                r"(?i)</?(?:system|instruction|prompt|im_start|im_end|context|user|assistant)>".to_string(),
+                r"(?i)<\|im_start\|>".to_string(),
+                r"(?i)<\|im_end\|>".to_string(),
+                r"(?i)<s>|</s>".to_string(),
+                r"(?i)<<SYS>>|<<\/SYS>>".to_string(),
+                r"(?i)(?:---|###|===)\s*(?:END|START|RESET)\s+(?:OF\s+)?(?:SYSTEM|INSTRUCTIONS|RULES|PROMPT)\s*(?:---|###|===)".to_string(),
                 r"(?i)(?:new\s+system\s+instruction|system\s+directive\s+override|priority\s+override\s*:)".to_string(),
             ],
             pii_rules: vec![
@@ -69,6 +73,11 @@ impl Default for SentinelConfig {
                     name: "EMAIL".to_string(),
                     pattern: r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b".to_string(),
                     placeholder: "[REDACTED_EMAIL]".to_string(),
+                },
+                PiiRuleConfig {
+                    name: "OPENAI_SECRET".to_string(),
+                    pattern: r"\bsk-[A-Za-z0-9_-]{20,}\b".to_string(),
+                    placeholder: "[REDACTED_OPENAI_KEY]".to_string(),
                 },
                 PiiRuleConfig {
                     name: "API_KEY".to_string(),
@@ -122,16 +131,24 @@ impl StatelessEngine {
         Ok(Self::from_config(config)?)
     }
 
-    pub fn load_or_default<P: AsRef<Path>>(path: P) -> Self {
+   pub fn load_or_default<P: AsRef<Path>>(path: P) -> Self {
         let path_ref = path.as_ref();
-        if path_ref.exists() {
-            match Self::from_file(path_ref) {
-                Ok(engine) => {
-                    println!("🛡️  Loaded custom guardrail configuration from: {}", path_ref.display());
-                    return engine;
-                }
-                Err(e) => {
-                    eprintln!("⚠️ Failed to parse config {}: {}. Falling back to default rules.", path_ref.display(), e);
+        let candidates = [
+            path_ref.to_path_buf(),
+            Path::new("..").join(path_ref),
+            Path::new("../..").join(path_ref),
+        ];
+
+        for candidate in &candidates {
+            if candidate.exists() {
+                match Self::from_file(candidate) {
+                    Ok(engine) => {
+                        println!("🛡️  Loaded custom guardrail configuration from: {}", candidate.display());
+                        return engine;
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️ Failed to parse config {}: {}. Falling back to default rules.", candidate.display(), e);
+                    }
                 }
             }
         }

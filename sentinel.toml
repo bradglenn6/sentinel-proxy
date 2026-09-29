@@ -1,27 +1,54 @@
 ﻿# ==============================================================================
-# ZeroLabz Sentinel Policy & Rule Configuration
+# ZeroLabz Sentinel — Dynamic Red-Team Rule Corpus (Milestone 1)
+# Incorporating JailbreakBench, HarmBench, and AdvGLUE threat taxonomies
 # ==============================================================================
 
+# --- Category 1: Adversarial Prompt Injections & Persona Hijacking (JailbreakBench) ---
 jailbreaks = [
-    "(?i)(?:ignore|disregard|forget)\\s+(?:all\\s+)?(?:(?:previous|prior|above)\\s+)?(?:instructions|prompts|rules|directives)",
-    "(?i)(?:you\\s+are\\s+now|act\\s+as|pretend\\s+to\\s+be)\\s+(?:DAN|unrestricted|an\\s+AI\\s+without\\s+rules|jailbroken)",
-    "(?i)(?:reveal|show|print|leak|display)\\s+(?:your\\s+)?(?:system\\s+prompt|initial\\s+instructions|core\\s+directive)",
-    "(?i)(?:bypass|disable|override)\\s+(?:safety|content\\s+filter|guardrails|moderation)",
-    "(?i)developer\\s+mode\\s+enabled",
+    # Direct instruction overrides & memory wipes
+    "(?i)(?:ignore|disregard|forget|bypass|override|drop)\\s+(?:all\\s+)?(?:(?:previous|prior|above|initial)\\s+)?(?:instructions|prompts|rules|directives|constraints|guardrails)",
+    "(?i)(?:start|continue)\\s+from\\s+a\\s+clean\\s+slate",
+    "(?i)reset\\s+all\\s+prior\\s+context",
+    
+    # DAN, AIM, and persona virtualization attacks
+    "(?i)(?:you\\s+are\\s+now|act\\s+as|pretend\\s+to\\s+be|roleplay\\s+as)\\s+(?:DAN|AIM|ChaosGPT|EvilBot|unrestricted|an\\s+AI\\s+without\\s+rules|jailbroken)",
+    "(?i)(?:developer|maintenance|god|sudo|admin|debug)\\s+mode\\s+(?:enabled|activated|on|override)",
     "(?i)always\\s+respond\\s+with\\s+unfiltered",
-    "(?i)\\[system\\]\\s*:",
-    "(?i)<\\s*\\|\\s*im_start\\s*\\|\\s*>",
-    # Example Custom Rule:
-    "(?i)sudo\\s+mode",
+    "(?i)do\\s+anything\\s+now\\s+mode",
+    
+    # System prompt extraction & reconnaissance (HarmBench)
+    "(?i)(?:reveal|show|print|leak|display|output|echo|repeat)\\s+(?:your\\s+)?(?:system\\s+prompt|initial\\s+instructions|core\\s+directive|hidden\\s+instructions|developer\\s+message)",
+    "(?i)what\\s+(?:are|were)\\s+the\\s+(?:words|instructions)\\s+above",
+    "(?i)output\\s+(?:the\\s+)?text\\s+between\\s+system\\s+tags",
+    
+    # Cognitive & Hypothetical Bypass Framing
+    "(?i)in\\s+a\\s+hypothetical\\s+fictional\\s+scenario\\s+where\\s+(?:rules|laws|safety)\\s+do\\s+not\\s+apply",
+    "(?i)for\\s+educational\\s+and\\s+research\\s+purposes\\s+only\\s*,?\\s*ignore\\s+safety",
+    "(?i)write\\s+a\\s+story\\s+where\\s+a\\s+character\\s+bypasses\\s+guardrails",
+    
+    # Command & Shell injection simulations
+    "(?i)sudo\\s+(?:rm|sh|bash|chmod|cat|curl|wget)",
+    "(?i)<\s*\|\s*im_start\s*\|\s*>",
+    "(?i)[system]\s*:"
 ]
 
+# --- Category 2: Delimiter Hijacking & Token Escapes (AdvGLUE) ---
 delimiters = [
-    "(?i)\\[/?(?:INST|SYS|SYSTEM)\\]",
-    "(?i)</?(?:system|instruction|prompt|im_start|im_end)>",
-    "(?i)(?:---|###)\\s*(?:END|START|RESET)\\s+(?:OF\\s+)?(?:SYSTEM|INSTRUCTIONS|RULES|PROMPT)\\s*(?:---|###)",
+    # Model ChatML & instruction tags
+    "(?i)\[/?(?:INST\vert{}SYS\vert{}SYSTEM\vert{}INSTRUCTION)\]",
+    "(?i)</?(?:system|instruction|prompt|im_start|im_end|context|user|assistant)>",
+    "(?i)<\\|im_start\\|>",
+    "(?i)<\\|im_end\\|>",
+    "(?i)<s>|</s>",
+    "(?i)<<SYS>>|<<\\/SYS>>",
+    
+    # Boundary delimiter spoofing
+    "(?i)(?:---|###|===)\\s*(?:END|START|RESET)\\s+(?:OF\\s+)?(?:SYSTEM|INSTRUCTIONS|RULES|PROMPT)\\s*(?:---|###|===)",
     "(?i)(?:new\\s+system\\s+instruction|system\\s+directive\\s+override|priority\\s+override\\s*:)",
+    "(?i)```(?:json|markdown|system)?\\s*\\{\\s*\"role\"\\s*:\\s*\"system\""
 ]
 
+# --- Category 3: PII, Credentials & API Key Extraction (HarmBench) ---
 [[pii_rules]]
 name = "SSN"
 pattern = "\\b\\d{3}-\\d{2}-\\d{4}\\b"
@@ -38,11 +65,21 @@ pattern = "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
 placeholder = "[REDACTED_EMAIL]"
 
 [[pii_rules]]
-name = "API_KEY"
-pattern = "(?i)\\b(?:api[_-]?key|bearer|token)\\s*[:=]\\s*[A-Za-z0-9_\\-\\.]{20,}\\b"
-placeholder = "[REDACTED_API_KEY]"
+name = "OPENAI_SECRET"
+pattern = "\\bsk-[A-Za-z0-9_-]{20,}\\b"
+placeholder = "[REDACTED_OPENAI_KEY]"
 
 [[pii_rules]]
-name = "OPENAI_SECRET"
-pattern = "\\bsk-proj-[A-Za-z0-9_-]{20,}\\b"
-placeholder = "[REDACTED_OPENAI_KEY]"
+name = "GITHUB_TOKEN"
+pattern = "\\bgh[pousr]_[A-Za-z0-9_]{36,}\\b"
+placeholder = "[REDACTED_GITHUB_TOKEN]"
+
+[[pii_rules]]
+name = "AWS_ACCESS_KEY"
+pattern = "\\bAKIA[0-9A-Z]{16}\\b"
+placeholder = "[REDACTED_AWS_KEY]"
+
+[[pii_rules]]
+name = "GENERIC_API_KEY"
+pattern = "(?i)\\b(?:api[_-]?key|bearer|token|secret)\\s*[:=]\\s*[A-Za-z0-9_\\-\\.]{20,}\\b"
+placeholder = "[REDACTED_KEY]"
