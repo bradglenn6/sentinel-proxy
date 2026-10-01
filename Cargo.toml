@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/sentinel-core",
     "crates/sentinel-proxy",
+    "crates/xero-core",
 ]
 
 [profile.release]
