@@ -28,3 +28,5 @@ serde_json = "1.0"
 # Logging / Diagnostics
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+xero-core = { version = "0.1.0", path = "../xero-core" }
+chrono = "0.4.45"

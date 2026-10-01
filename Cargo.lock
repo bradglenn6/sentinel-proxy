@@ -1140,6 +1140,7 @@ dependencies = [
  "async-stream",
  "axum",
  "bytes",
+ "chrono",
  "futures-util",
  "reqwest",
  "sentinel-core",
@@ -1149,6 +1150,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
+ "xero-core",
 ]
 
 [[package]]
