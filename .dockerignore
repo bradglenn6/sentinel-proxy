@@ -1,7 +1,5 @@
-﻿target/
-**/target/
+﻿node_modules
+target
+*.node
 .git
-.gitignore
-payload.json
-*.pdb
-*.exe
+.env
