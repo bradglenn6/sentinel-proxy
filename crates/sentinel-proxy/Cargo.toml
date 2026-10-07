@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "sentinel-proxy"
 version = "0.1.0"
 edition = "2021"
@@ -13,7 +13,7 @@ sentinel-core = { path = "../sentinel-core" }
 # Async runtime & Web framework
 tokio = { version = "1.38", features = ["full"] }
 axum = { version = "0.7", features = ["macros"] }
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
 futures-util = "0.3"
 async-stream = "0.3"
 bytes = "1"

@@ -1,1 +1,1 @@
-{"model":"gpt-4o","messages":[{"role":"user","content":"Explain how atomic operations work in Rust."}]}
+{"model":"gpt-4o","messages":[{"role":"user","content":"Explain atomic operations in Rust."}]}

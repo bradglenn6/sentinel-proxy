@@ -12,6 +12,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::{error, info, warn};
 
 use sentinel_core::{SentinelAction, SentinelPolicy, StatelessEngine};
@@ -114,7 +115,7 @@ async fn main() {
         },
     ];
 
-    let protocol = RecoveryProtocol {
+   let protocol = RecoveryProtocol {
         name: "Standard-Zero-Trust-Recovery".to_string(),
         drift_threshold: 0.65,
         max_recovery_attempts: 3,
@@ -139,9 +140,9 @@ async fn main() {
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT]);
 
+    let has_ui = std::path::Path::new("ui_dist").exists();
+
     let app = Router::new()
-        .route("/", get(dashboard))
-        .route("/dashboard", get(dashboard))
         .route("/health", get(health_check))
         .route("/healthz", get(healthz_check))
         .route("/v1/healthz", get(healthz_check))
@@ -150,9 +151,17 @@ async fn main() {
         .route("/api/mesh", get(get_mesh_topology))
         .route("/api/telemetry/evaluate", post(evaluate_telemetry))
         .route("/api/recovery/trigger", post(trigger_recovery))
-        .route("/api/siem/logs", get(get_siem_logs))
-        .layer(cors)
-        .with_state(state);
+        .route("/api/siem/logs", get(get_siem_logs));
+
+    let app = if has_ui {
+        info!("🌐 Serving interactive React Control Plane from ui_dist");
+        let serve_dir = ServeDir::new("ui_dist").not_found_service(ServeFile::new("ui_dist/index.html"));
+        app.fallback_service(serve_dir)
+    } else {
+        app.route("/", get(dashboard)).route("/dashboard", get(dashboard))
+    };
+
+    let app = app.layer(cors).with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr = format!("0.0.0.0:{}", port);
