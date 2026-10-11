@@ -9,8 +9,13 @@ const engine = new StatelessInspectionEngine();
 
 const getUpstreamEndpoint = (): string => {
   const envUrl = process.env.UPSTREAM_LLM_URL || 'https://generativelanguage.googleapis.com/v1beta/openai';
-  if (envUrl.includes('generativelanguage.googleapis.com')) {
-    return 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+  try {
+    const parsed = new URL(envUrl);
+    if (parsed.hostname === 'generativelanguage.googleapis.com') {
+      return 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+    }
+  } catch {
+    // Fall through to existing normalization behavior for non-URL inputs.
   }
   const cleanBase = envUrl.replace(/\/+$/, '');
   return cleanBase.endsWith('/chat/completions') ? cleanBase : `${cleanBase}/chat/completions`;
@@ -33,7 +38,7 @@ const renderStatusHtml = () => `
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZeroLabz Sentinel — Active</title>
+  <title>ZeroLabz Sentinel â€” Active</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0B0F17; color: #E2E8F0; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .card { background: #151E2E; border: 1px solid #264669; border-radius: 12px; padding: 40px; max-width: 520px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
@@ -55,7 +60,7 @@ const renderStatusHtml = () => `
       <span>? Inline Redaction</span>
       <span>? Cloud Audit Logs</span>
     </div>
-    <div class="footer">Zero-Trust Infrastructure · <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a></div>
+    <div class="footer">Zero-Trust Infrastructure Â· <a href="https://github.com/bradglenn6/sentinel-proxy" target="_blank">GitHub</a></div>
   </div>
 </body>
 </html>
