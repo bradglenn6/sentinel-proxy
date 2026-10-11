@@ -1,6 +1,6 @@
 {
   "name": "@zerolabz/sentinel-proxy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Stateless AI guardrail and reverse proxy middleware",
   "main": "dist/server.js",
   "scripts": {
