@@ -21,10 +21,13 @@ export class SentinelClient {
   public readonly policy: 'strict' | 'redact' | 'audit';
 
   constructor(options: SentinelClientOptions = {}) {
-    this.baseUrl = (
-      options.baseUrl ||
-      'https://sentinel-proxy-798917645637.us-west2.run.app/v1'
-    ).replace(/\/+$/, '');
+    let base = options.baseUrl || 'https://sentinel-proxy-798917645637.us-west2.run.app/v1';
+
+while (base.endsWith('/')) {
+  base = base.slice(0, -1);
+}
+
+this.baseUrl = base;
     this.apiKey = options.apiKey || 'sentinel-stateless';
     this.policy = options.policy || 'strict';
   }
