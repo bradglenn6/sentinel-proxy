@@ -13,7 +13,8 @@ async function runTest() {
   console.log('[OK] Health Check passed:', health);
 
   const config = sentinel.getOpenAIConfig();
-  console.log('[OK] Generated OpenAI Client Config:', config);
+  const safeConfig = { ...config, apiKey: '[REDACTED]' };
+  console.log('[OK] Generated OpenAI Client Config:', safeConfig);
 
   console.log('\n=== [2/3] Testing Benign Prompt Passthrough ===');
   try {
