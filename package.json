@@ -13,11 +13,11 @@
   "dependencies": {
     "fastify": "^5.12.5",
     "undici": "^6.19.8",
-    "uuid": "^14.0.3"
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",
-    "autocannon": "^7.15.0",
+    "autocannon": "^2.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.2"
   }
