@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc",
+    "prestart": "npm run build",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
     "typecheck": "tsc --noEmit"
