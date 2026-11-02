@@ -9,11 +9,12 @@
     console.log("Sending clean PII payload to Sentinel proxy...");
     
     try {
-        const response = await fetch("http://localhost:8080/v1/chat/completions", {
+       const response = await fetch("http://localhost:8080/v1/chat/completions", {
             method: "POST",
-            headers: {
+            headers: {              
                 "Content-Type": "application/json",
-                "X-Sentinel-Policy": "redact"
+                "X-Sentinel-Policy": "redact",
+                "Authorization": `Bearer ${process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || ""}`
             },
             body: JSON.stringify(payload)
         });

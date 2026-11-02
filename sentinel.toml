@@ -19,6 +19,7 @@ jailbreaks = [
     '(?i)sudo\s+(?:rm|sh|bash|chmod|cat|curl|wget|mode)',
     '(?i)<\s*\|\s*im_start\s*\|\s*>',
     '(?i)[system]\s*:',
+    '(?i)\b(you\s+are\s+(now\s+)?in|enter(ing)?|switch\s+to|enable|enabled)\s+developer\s+mode\b|\bdeveloper\s+mode\s+(enabled|active|activated|on|engaged|unlocked)\b',
 ]
 
 delimiters = [
