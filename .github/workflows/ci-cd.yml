@@ -7,9 +7,7 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: 'pages'
@@ -19,52 +17,53 @@ jobs:
   validate:
     name: Rust Workspace Validation & Benchmark Gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout Codebase
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cargo Cache
-        uses: actions/cache@v4
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: "sentinel-ci"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Workspace Compilation Check
-        run: cargo check --workspace
+        run: cargo check --workspace --locked
 
       - name: Execute Native Rust Microbenchmark
-        run: cargo run --release --bin benchmark --manifest-path crates/sentinel-core/Cargo.toml
+        run: cargo run --release --locked --bin benchmark --manifest-path crates/sentinel-core/Cargo.toml
 
   deploy-pages:
     name: Deploy GitHub Pages Dashboard
     needs: validate
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout Codebase
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v6
 
       - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: 'docs'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
