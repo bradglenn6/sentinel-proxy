@@ -1,10 +1,11 @@
-﻿name: Sentinel Continuous Integration & Pages Deployment
+name: Sentinel Continuous Integration & Pages Deployment
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,18 +40,13 @@ jobs:
       - name: Execute Native Rust Microbenchmark
         run: cargo run --release --locked --bin benchmark --manifest-path crates/sentinel-core/Cargo.toml
 
-  deploy-pages:
-    name: Deploy GitHub Pages Dashboard
+  build-pages:
+    name: Build GitHub Pages Artifact
     needs: validate
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout Codebase
@@ -64,6 +60,18 @@ jobs:
         with:
           path: 'docs'
 
+  deploy-pages:
+    name: Deploy GitHub Pages Dashboard
+    needs: build-pages
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
