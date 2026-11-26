@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23893474.svg)](https://doi.org/10.5281/zenodo.23893474)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23893474.svg)](https://doi.org/10.5281/zenodo.23893474) [![CycloneDX 1.7 CBOM](https://github.com/bradglenn6/sentinel-proxy/actions/workflows/cbom.yml/badge.svg)](https://github.com/bradglenn6/sentinel-proxy/actions/workflows/cbom.yml)
 
 <div align="center">
 
