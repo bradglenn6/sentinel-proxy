@@ -1,0 +1,102 @@
+name: CycloneDX 1.7 CBOM
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-cbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install @cyclonedx/cdxgen
+        run: npm install -g @cyclonedx/cdxgen
+
+      - name: Generate CycloneDX 1.7 CBOM
+        run: |
+          cdxgen \
+            --spec-version 1.7 \
+            --deep \
+            --include-crypto \
+            -o cbom.json \
+            .
+
+      - name: Enrich CRA/CISA metadata & cryptographic assets
+        run: |
+          jq '
+            .metadata.manufacturer = {
+              "name": "ZeroLabz",
+              "url": ["https://zrolabz.com"],
+              "contact": [{"name": "ZeroLabz Security", "email": "dev@zrolabz.com"}]
+            } |
+            .metadata.supplier = {
+              "name": "ZeroLabz",
+              "url": ["https://zrolabz.com"],
+              "contact": [{"name": "ZeroLabz Security", "email": "dev@zrolabz.com"}]
+            } |
+            .components = ((.components // []) + [
+              {
+                "type": "cryptographic-asset",
+                "bom-ref": "crypto/ml-dsa-65",
+                "name": "ML-DSA-65",
+                "description": "NIST FIPS 204 ML-DSA-65 post-quantum digital signature attestation",
+                "cryptoProperties": {
+                  "assetType": "algorithm",
+                  "algorithmProperties": {
+                    "primitive": "signature",
+                    "parameterSetIdentifier": "65",
+                    "cryptoFunctions": ["keygen", "sign", "verify"],
+                    "classicalSecurityLevel": 192,
+                    "nistQuantumSecurityLevel": 3
+                  },
+                  "oid": "2.16.840.1.101.3.4.3.18"
+                }
+              }
+            ] | unique_by(.["bom-ref"] // .name))
+          ' cbom.json > cbom.enriched.json
+          mv cbom.enriched.json cbom.json
+
+      - name: Validate CBOM against CycloneDX 1.7 schema
+        run: |
+          set +e
+          cdx-validate -i cbom.json
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 3 ]; then
+            echo "::warning::cdx-validate reported compliance scorecard findings (exit code 3); schema validation passed."
+          elif [ "$EXIT_CODE" -ne 0 ]; then
+            exit "$EXIT_CODE"
+          fi
+
+      - name: Summarize detected cryptographic assets
+        run: |
+          jq '[.components[]? | select(.type == "cryptographic-asset") | {
+            name,
+            assetType: .cryptoProperties.assetType,
+            primitive: .cryptoProperties.algorithmProperties.primitive,
+            quantumLevel: .cryptoProperties.algorithmProperties.nistQuantumSecurityLevel,
+            oid: .cryptoProperties.oid
+          }]' cbom.json
+
+      - name: Upload CycloneDX CBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-proxy-cbom-${{ github.sha }}
+          path: cbom.json
+          retention-days: 90
